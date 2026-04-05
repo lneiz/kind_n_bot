@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бот Сосед-путешественник</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-md p-8 w-full max-w-md">
+        <h1 class="text-2xl font-bold mb-4 text-center text-blue-600">🏕 Твое предсказание</h1>
+        <form action="/generate_prediction" method="post" id="prediction-form" class="space-y-4">
+            <input type="hidden" name="user_id" id="user_id" value="{{ user_id }}">
+            <div>
+                <label for="birth_date" class="block text-sm font-medium text-gray-700">Дата рождения</label>
+                <input type="date" id="birth_date" name="birth_date" required 
+                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                       {% if user and user.birth_date %} value="{{ user.birth_date.isoformat() }}" disabled {% endif %}>
+            </div>
+            <div>
+                <label for="gender" class="block text-sm font-medium text-gray-700">Пол</label>
+                <select id="gender" name="gender" required 
+                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                        {% if user and user.gender %} disabled {% endif %}>
+                    <option value="1" {% if user and user.gender == 1 %} selected {% endif %}>Мужской</option>
+                    <option value="2" {% if user and user.gender == 2 %} selected {% endif %}>Женский</option>
+                </select>
+            </div>
+            <p class="text-xs text-gray-500">Дату можно указать только один раз. Проверьте правильность перед подтверждением.</p>
+            <button type="submit" id="submit-btn" 
+                    class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200">
+                Получить предсказание
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        
+        // Confirm before submit
+        document.getElementById('prediction-form').onsubmit = function(e) {
+            const birthDate = document.getElementById('birth_date').value;
+            if (!birthDate) {
+                alert("Пожалуйста, выберите дату рождения!");
+                return false;
+            }
+            
+            // Only confirm if date is NOT disabled (not set yet)
+            if (!document.getElementById('birth_date').disabled) {
+                if (!confirm("Дату можно указать один раз. Верно?")) {
+                    return false;
+                }
+            }
+            return true;
+        };
+    </script>
+</body>
+</html>

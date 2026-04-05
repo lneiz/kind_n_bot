@@ -1,0 +1,11 @@
+aiogram>=3.0.0
+fastapi
+uvicorn
+sqlalchemy[asyncio]
+asyncpg
+python-dotenv
+httpx
+jinja2
+python-multipart
+apscheduler
+pytz

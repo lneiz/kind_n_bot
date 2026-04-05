@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Твое предсказание</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-md p-8 w-full max-w-lg">
+        <h1 class="text-2xl font-bold mb-4 text-center text-blue-600">🏕 Твой ироничный совет</h1>
+        <div class="bg-blue-50 border-l-4 border-blue-400 p-6 mb-6">
+            <p class="text-gray-800 text-lg leading-relaxed italic">{{ prediction }}</p>
+        </div>
+        <div class="space-y-4">
+            <button id="save-favorite" onclick="saveToFavorites()" 
+                    class="w-full bg-yellow-500 text-white font-bold py-2 px-4 rounded-md hover:bg-yellow-600 transition duration-200">
+                В избранное ⭐
+            </button>
+            <button id="close-app" onclick="closeApp()" 
+                    class="w-full bg-gray-600 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-700 transition duration-200">
+                Закрыть приложение
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+
+        async function saveToFavorites() {
+            const userId = {{ user_id }};
+            const content = `{{ prediction | replace("'", "\\'") }}`;
+            
+            try {
+                const response = await fetch('/save_favorite', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `user_id=${userId}&content=${encodeURIComponent(content)}`
+                });
+                
+                if (response.ok) {
+                    alert("Предсказание сохранено в избранное!");
+                    document.getElementById('save-favorite').disabled = true;
+                    document.getElementById('save-favorite').innerText = "Сохранено в избранном ⭐";
+                }
+            } catch (error) {
+                console.error("Error saving favorite:", error);
+            }
+        }
+
+        function closeApp() {
+            tg.close();
+        }
+    </script>
+</body>
+</html>
