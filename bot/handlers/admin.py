@@ -3,20 +3,26 @@ from aiogram.filters import Command
 from sqlalchemy.future import select
 from core.database import async_session, User, Chat, UserChat
 from sqlalchemy import update
+from config import ADMIN_ID
 
 router = Router()
 
 @router.message(Command("start_prediction_wave"))
 async def cmd_start_prediction_wave(message: types.Message):
     """Admin command to reset predictions_count for all users in a chat."""
+    # Global admin check
+    is_global_admin = message.from_user.id == ADMIN_ID
+    
     if message.chat.type not in ["group", "supergroup"]:
         await message.answer("Эта команда работает только в группах.")
         return
         
-    member = await message.bot.get_chat_member(message.chat.id, message.from_user.id)
-    if member.status not in ["creator", "administrator"]:
-        await message.answer("Только администратор чата может запустить волну предсказаний.")
-        return
+    # If not global admin, check if user is chat admin
+    if not is_global_admin:
+        member = await message.bot.get_chat_member(message.chat.id, message.from_user.id)
+        if member.status not in ["creator", "administrator"]:
+            await message.answer("Только администратор чата или глобальный админ может запустить волну предсказаний.")
+            return
     
     chat_id = message.chat.id
     

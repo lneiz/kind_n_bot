@@ -17,19 +17,26 @@ DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"
 # Database
 DB_USER = os.getenv("DB_USER")
 DB_PASS = os.getenv("DB_PASS")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
 DB_NAME = os.getenv("DB_NAME")
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # Web App
-WEBAPP_HOST = "0.0.0.0"
-WEBAPP_PORT = 8000
-WEB_APP_URL = os.getenv("WEB_APP_URL", "http://localhost:8000")
+WEBAPP_HOST = os.getenv("WEBAPP_HOST", "0.0.0.0")
+WEBAPP_PORT = int(os.getenv("WEBAPP_PORT", 8000))
+WEB_APP_URL = os.getenv("WEB_APP_URL")
+
+# Global Admin
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0))
 
 # Validation to prevent start with missing keys
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN is not set in .env file")
 if not DEEPSEEK_API_KEY:
     raise ValueError("DEEPSEEK_API_KEY is not set in .env file")
+if not DB_USER or not DB_PASS or not DB_HOST or not DB_NAME:
+    raise ValueError("Database configuration (DB_USER, DB_PASS, DB_HOST, DB_NAME) is not complete in .env file")
+if not ADMIN_ID:
+    print("Warning: ADMIN_ID is not set in .env file. Global admin features will be disabled.")
