@@ -67,7 +67,7 @@ async def generate_prediction(
             
         prompt = prompt_template.format(data=str(data))
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{DEEPSEEK_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
