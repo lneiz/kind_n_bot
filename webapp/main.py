@@ -24,11 +24,14 @@ async def webapp_home(request: Request, user_id: int = None):
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
         
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "user": user,
-        "user_id": user_id
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={
+            "user": user,
+            "user_id": user_id
+        }
+    )
 
 @app.post("/generate_prediction")
 async def generate_prediction(
@@ -82,11 +85,14 @@ async def generate_prediction(
         user.predictions_count = 0
         await session.commit()
         
-    return templates.TemplateResponse("prediction.html", {
-        "request": request,
-        "prediction": prediction_text,
-        "user_id": user_id
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="prediction.html",
+        context={
+            "prediction": prediction_text,
+            "user_id": user_id
+        }
+    )
 
 @app.post("/save_favorite")
 async def save_favorite(user_id: int = Form(...), content: str = Form(...)):
