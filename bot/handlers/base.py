@@ -27,7 +27,7 @@ async def cmd_start(message: types.Message):
     
     # Keyboard with Web App button
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎁 Получить предсказание", web_app=WebAppInfo(url=f"{WEB_APP_URL}/webapp"))]
+        [InlineKeyboardButton(text="🎁 Получить предсказание", web_app=WebAppInfo(url=f"{WEB_APP_URL}/webapp?user_id={message.from_user.id}"))]
     ])
     
     await message.answer(
