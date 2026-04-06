@@ -1,4 +1,5 @@
 from aiogram import Router, types, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart, Command
 from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.future import select
@@ -11,11 +12,10 @@ router = Router()
 async def cmd_start(message: types.Message):
     """Handle /start command."""
     async with async_session() as session:
-        # Check if user exists
         stmt = select(User).where(User.user_id == message.from_user.id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
-        
+
         if not user:
             user = User(
                 user_id=message.from_user.id,
@@ -24,18 +24,34 @@ async def cmd_start(message: types.Message):
             )
             session.add(user)
             await session.commit()
-    
-    # Keyboard with Web App button
+
+    if message.chat.type in ["group", "supergroup"]:
+        await message.answer(
+            "Я работаю с предсказаниями через личные сообщения. Открой меня в личке и нажми /start. "
+            "Для работы в группе админ может настроить таймзону командой /timezone."
+        )
+        return
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎁 Получить предсказание", web_app=WebAppInfo(url=f"{WEB_APP_URL}/webapp?user_id={message.from_user.id}"))]
+        [InlineKeyboardButton(
+            text="🎁 Получить предсказание",
+            web_app=WebAppInfo(url=f"{WEB_APP_URL}/webapp?user_id={message.from_user.id}")
+        )]
     ])
-    
-    await message.answer(
-        f"Привет, {message.from_user.first_name}! Я твой дружелюбный сосед-путешественник.\n\n"
-        "Заполни анкету в моем приложении, чтобы я мог рассчитать твою матрицу судьбы и "
-        "сделать для тебя особенное предсказание!",
-        reply_markup=keyboard
-    )
+
+    try:
+        await message.answer(
+            f"Привет, {message.from_user.first_name}! Я твой дружелюбный сосед-путешественник.\n\n"
+            "Заполни анкету в моем приложении, чтобы я мог рассчитать твою матрицу судьбы и "
+            "сделать для тебя особенное предсказание!",
+            reply_markup=keyboard
+        )
+    except TelegramBadRequest as e:
+        if "BUTTON_TYPE_INVALID" not in str(e):
+            raise
+        await message.answer(
+            "Открой меня в личке и нажми /start, чтобы получить предсказание."
+        )
 
 @router.my_chat_member(F.new_chat_member.status == "member")
 async def bot_added_to_group(event: types.ChatMemberUpdated):
