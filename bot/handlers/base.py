@@ -60,7 +60,6 @@ async def bot_added_to_group(event: types.ChatMemberUpdated):
     chat_title = event.chat.title
     
     async with async_session() as session:
-        # Add chat to database
         stmt = select(Chat).where(Chat.chat_id == chat_id)
         result = await session.execute(stmt)
         chat = result.scalar_one_or_none()
@@ -76,3 +75,60 @@ async def bot_added_to_group(event: types.ChatMemberUpdated):
         "Админ, пожалуйста, настрой временную зону чата с помощью команды /timezone, "
         "чтобы я знал, когда приходить с поздравлениями!"
     )
+
+@router.message(F.new_chat_members)
+async def greet_new_chat_members(message: types.Message):
+    if message.chat.type not in ["group", "supergroup"]:
+        return
+
+    chat_id = message.chat.id
+    chat_title = message.chat.title
+
+    new_members = [m for m in (message.new_chat_members or []) if not m.is_bot]
+    if not new_members:
+        return
+
+    async with async_session() as session:
+        stmt = select(Chat).where(Chat.chat_id == chat_id)
+        result = await session.execute(stmt)
+        chat = result.scalar_one_or_none()
+
+        if not chat:
+            chat = Chat(chat_id=chat_id, title=chat_title)
+            session.add(chat)
+            await session.commit()
+
+        for member in new_members:
+            stmt = select(User).where(User.user_id == member.id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                user = User(user_id=member.id, first_name=member.first_name, username=member.username)
+                session.add(user)
+                await session.commit()
+
+            stmt = select(UserChat).where(UserChat.user_id == member.id, UserChat.chat_id == chat_id)
+            result = await session.execute(stmt)
+            association = result.scalar_one_or_none()
+
+            if not association:
+                session.add(UserChat(user_id=member.id, chat_id=chat_id))
+                await session.commit()
+
+    for member in new_members:
+        name = f"@{member.username}" if member.username else member.first_name
+
+        reply_markup = None
+        if WEB_APP_URL:
+            reply_markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text="🎁 Открыть предсказание",
+                    url=f"{WEB_APP_URL}/webapp?user_id={member.id}"
+                )]
+            ])
+
+        await message.answer(
+            f"Привет, {name}! Рады тебе. Держи персональное предсказание на следующую неделю",
+            reply_markup=reply_markup
+        )
