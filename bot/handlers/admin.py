@@ -7,6 +7,10 @@ from sqlalchemy import update, func
 from core.database import async_session, User, Chat, UserChat
 from config import ADMIN_ID, WEB_APP_URL
 
+WEB_APP_BASE_URL = (WEB_APP_URL or "").rstrip("/")
+if WEB_APP_BASE_URL.endswith("/webapp"):
+    WEB_APP_BASE_URL = WEB_APP_BASE_URL[: -len("/webapp")]
+
 router = Router()
 
 async def _is_chat_admin_or_global(message: types.Message) -> bool:
@@ -60,20 +64,22 @@ async def cmd_offer_prediction(message: types.Message):
         await message.answer("Только администратор чата или глобальный админ может использовать эту команду.")
         return
 
-    if not WEB_APP_URL:
+    if not WEB_APP_BASE_URL:
         await message.answer("WEB_APP_URL не настроен.")
         return
+
+    webapp_url = f"{WEB_APP_BASE_URL}/webapp"
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="🎁 Открыть предсказание",
-            web_app=WebAppInfo(url=f"{WEB_APP_URL}/webapp")
+            web_app=WebAppInfo(url=webapp_url)
         )]
     ])
 
     try:
         await message.answer(
-            "Кому нужен прогноз — нажмите кнопку ниже. Откроется веб‑приложение прямо в Telegram.",
+            "Кому нужен прогноз — нажмите кнопку ниже. Веб‑приложение откроется прямо в Telegram.",
             reply_markup=keyboard
         )
     except TelegramBadRequest as e:
@@ -81,7 +87,7 @@ async def cmd_offer_prediction(message: types.Message):
             raise
 
         fallback = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Открыть по ссылке", url=f"{WEB_APP_URL}/webapp")]
+            [InlineKeyboardButton(text="Открыть по ссылке", url=webapp_url)]
         ])
 
         await message.answer(

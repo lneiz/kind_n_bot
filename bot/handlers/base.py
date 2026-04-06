@@ -8,6 +8,10 @@ from config import WEB_APP_URL
 
 router = Router()
 
+WEB_APP_BASE_URL = (WEB_APP_URL or "").rstrip("/")
+if WEB_APP_BASE_URL.endswith("/webapp"):
+    WEB_APP_BASE_URL = WEB_APP_BASE_URL[: -len("/webapp")]
+
 @router.message(CommandStart())
 async def cmd_start(message: types.Message):
     """Handle /start command."""
@@ -35,7 +39,7 @@ async def cmd_start(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="🎁 Получить предсказание",
-            web_app=WebAppInfo(url=f"{WEB_APP_URL}/webapp?user_id={message.from_user.id}")
+            web_app=WebAppInfo(url=f"{WEB_APP_BASE_URL}/webapp?user_id={message.from_user.id}")
         )]
     ])
 
