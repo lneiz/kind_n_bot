@@ -12,6 +12,8 @@
         <h1 class="text-2xl font-bold mb-4 text-center text-blue-600">🏕 Твое предсказание</h1>
         <form action="/generate_prediction" method="post" id="prediction-form" class="space-y-4">
             <input type="hidden" name="user_id" id="user_id" value="{{ user_id }}">
+            <input type="hidden" name="first_name" id="first_name" value="">
+            <input type="hidden" name="username" id="username" value="">
             <div>
                 <label for="birth_date" class="block text-sm font-medium text-gray-700">Дата рождения</label>
                 <input type="date" id="birth_date" name="birth_date" required 
@@ -38,21 +40,42 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready();
-        
-        // Confirm before submit
-        document.getElementById('prediction-form').onsubmit = function(e) {
+
+        const userIdInput = document.getElementById('user_id');
+        const firstNameInput = document.getElementById('first_name');
+        const usernameInput = document.getElementById('username');
+
+        const tgUser = tg?.initDataUnsafe?.user;
+        if (tgUser) {
+            firstNameInput.value = tgUser.first_name || '';
+            usernameInput.value = tgUser.username || '';
+
+            const url = new URL(window.location.href);
+            const hasUserIdParam = url.searchParams.has('user_id');
+
+            if (!userIdInput.value) {
+                userIdInput.value = tgUser.id;
+            }
+
+            if (!hasUserIdParam) {
+                url.searchParams.set('user_id', String(tgUser.id));
+                window.location.replace(url.toString());
+            }
+        }
+
+        document.getElementById('prediction-form').onsubmit = function() {
             const birthDate = document.getElementById('birth_date').value;
             if (!birthDate) {
                 alert("Пожалуйста, выберите дату рождения!");
                 return false;
             }
-            
-            // Only confirm if date is NOT disabled (not set yet)
+
             if (!document.getElementById('birth_date').disabled) {
                 if (!confirm("Дату можно указать один раз. Верно?")) {
                     return false;
                 }
             }
+
             return true;
         };
     </script>

@@ -16,14 +16,14 @@ app.mount("/static", StaticFiles(directory="webapp/static"), name="static")
 @app.get("/webapp")
 async def webapp_home(request: Request, user_id: int = None):
     """Render the initial Web App page."""
-    if not user_id:
-        return {"error": "user_id is required"}
-        
-    async with async_session() as session:
-        stmt = select(User).where(User.user_id == user_id)
-        result = await session.execute(stmt)
-        user = result.scalar_one_or_none()
-        
+    user = None
+
+    if user_id:
+        async with async_session() as session:
+            stmt = select(User).where(User.user_id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -35,19 +35,27 @@ async def webapp_home(request: Request, user_id: int = None):
 
 @app.post("/generate_prediction")
 async def generate_prediction(
-    request: Request, 
+    request: Request,
     user_id: int = Form(...),
     birth_date: str = Form(...),
-    gender: int = Form(...)
+    gender: int = Form(...),
+    first_name: str = Form(None),
+    username: str = Form(None)
 ):
     """Save birth date and generate prediction."""
     async with async_session() as session:
         stmt = select(User).where(User.user_id == user_id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
-        
+
         if not user:
-             return {"error": "User not found"}
+            user = User(
+                user_id=user_id,
+                first_name=(first_name or "Пользователь"),
+                username=username
+            )
+            session.add(user)
+            await session.commit()
         
         # Save birth date if not already set
         if not user.birth_date:

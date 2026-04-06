@@ -1,10 +1,11 @@
 from aiogram import Router, types, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from sqlalchemy.future import select
 from sqlalchemy import update, func
 from core.database import async_session, User, Chat, UserChat
-from config import ADMIN_ID
+from config import ADMIN_ID, WEB_APP_URL
 
 router = Router()
 
@@ -59,19 +60,34 @@ async def cmd_offer_prediction(message: types.Message):
         await message.answer("Только администратор чата или глобальный админ может использовать эту команду.")
         return
 
-    me = await message.bot.get_me()
-    url = f"https://t.me/{me.username}?start=webapp" if me.username else None
+    if not WEB_APP_URL:
+        await message.answer("WEB_APP_URL не настроен.")
+        return
 
-    keyboard = None
-    if url:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Открыть бота", url=url)]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🎁 Открыть предсказание",
+            web_app=WebAppInfo(url=f"{WEB_APP_URL}/webapp")
+        )]
+    ])
+
+    try:
+        await message.answer(
+            "Кому нужен прогноз — нажмите кнопку ниже. Откроется веб‑приложение прямо в Telegram.",
+            reply_markup=keyboard
+        )
+    except TelegramBadRequest as e:
+        if "BUTTON_TYPE_INVALID" not in str(e):
+            raise
+
+        fallback = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Открыть по ссылке", url=f"{WEB_APP_URL}/webapp")]
         ])
 
-    await message.answer(
-        "Кому нужен прогноз — откройте бота в личке и нажмите /start. Если бот не открывается, найдите его в поиске Telegram и нажмите Start.",
-        reply_markup=keyboard
-    )
+        await message.answer(
+            "Telegram не принял WebApp‑кнопку в этом чате. Откройте по ссылке:",
+            reply_markup=fallback
+        )
 
 @router.message(Command("add_predictions"))
 async def cmd_add_predictions(message: types.Message):
