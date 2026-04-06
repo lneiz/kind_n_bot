@@ -1,12 +1,12 @@
-from fastapi import FastAPI, Request, Form, Depends
+from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.future import select
-from core.database import async_session, User, FavoritePrediction
+from core.database import async_session, User
 from core.calculator import calculate_all
-from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
+from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, BOT_TOKEN
+from aiogram import Bot
 import httpx
-import os
 from datetime import datetime
 
 app = FastAPI()
@@ -37,12 +37,14 @@ async def webapp_home(request: Request, user_id: int = None):
 async def generate_prediction(
     request: Request,
     user_id: int = Form(...),
-    birth_date: str = Form(...),
-    gender: int = Form(...),
+    birth_date: str = Form(None),
+    gender: int = Form(None),
     first_name: str = Form(None),
     username: str = Form(None)
 ):
-    """Save birth date and generate prediction."""
+    """Save profile data (if missing) and send prediction to the user in private chat."""
+    prediction_text = None
+
     async with async_session() as session:
         stmt = select(User).where(User.user_id == user_id)
         result = await session.execute(stmt)
@@ -56,25 +58,51 @@ async def generate_prediction(
             )
             session.add(user)
             await session.commit()
-        
-        # Save birth date if not already set
+        else:
+            changed = False
+            if first_name and user.first_name != first_name:
+                user.first_name = first_name
+                changed = True
+            if username is not None and user.username != username:
+                user.username = username
+                changed = True
+            if changed:
+                await session.commit()
+
         if not user.birth_date:
+            if not birth_date:
+                return templates.TemplateResponse(
+                    request=request,
+                    name="index.html",
+                    context={"user": user, "user_id": user_id, "status": "Укажи дату рождения."}
+                )
             user.birth_date = datetime.strptime(birth_date, "%Y-%m-%d").date()
+            await session.commit()
+
+        if not user.gender:
+            if gender is None:
+                return templates.TemplateResponse(
+                    request=request,
+                    name="index.html",
+                    context={"user": user, "user_id": user_id, "status": "Укажи пол."}
+                )
             user.gender = gender
-        
-        # Check predictions_count
-        if user.predictions_count <= 0:
-            return {"error": "У вас закончились предсказания!"}
-            
-        # Calculate numerology
+            await session.commit()
+
+        if (user.predictions_count or 0) <= 0:
+            return templates.TemplateResponse(
+                request=request,
+                name="index.html",
+                context={"user": user, "user_id": user_id, "status": "У тебя закончились предсказания."}
+            )
+
         data = calculate_all(user.birth_date)
-        
-        # Generate prediction via DeepSeek
+
         with open("prompts/prediction.txt", "r", encoding="utf-8") as f:
             prompt_template = f.read()
-            
+
         prompt = prompt_template.format(data=str(data))
-        
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{DEEPSEEK_BASE_URL}/chat/completions",
@@ -88,25 +116,27 @@ async def generate_prediction(
                 }
             )
             prediction_text = response.json()["choices"][0]["message"]["content"]
-            
-        # Update predictions_count
-        user.predictions_count = 0
+
+        user.predictions_count = max((user.predictions_count or 0) - 1, 0)
         await session.commit()
-        
+
+    bot = Bot(token=BOT_TOKEN)
+    try:
+        await bot.send_message(user_id, prediction_text)
+    finally:
+        await bot.session.close()
+
+    async with async_session() as session:
+        stmt = select(User).where(User.user_id == user_id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+
     return templates.TemplateResponse(
         request=request,
-        name="prediction.html",
-        context={
-            "prediction": prediction_text,
-            "user_id": user_id
-        }
+        name="index.html",
+        context={"user": user, "user_id": user_id, "status": "Готово. Предсказание отправлено в личку бота."}
     )
 
 @app.post("/save_favorite")
 async def save_favorite(user_id: int = Form(...), content: str = Form(...)):
-    """Save prediction to favorites."""
-    async with async_session() as session:
-        fav = FavoritePrediction(user_id=user_id, content=content)
-        session.add(fav)
-        await session.commit()
-    return {"status": "ok"}
+    raise HTTPException(status_code=403, detail="disabled")

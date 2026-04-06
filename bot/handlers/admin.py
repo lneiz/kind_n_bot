@@ -1,15 +1,10 @@
 from aiogram import Router, types, F
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.future import select
 from sqlalchemy import update, func
 from core.database import async_session, User, Chat, UserChat
-from config import ADMIN_ID, WEB_APP_URL
-
-WEB_APP_BASE_URL = (WEB_APP_URL or "").rstrip("/")
-if WEB_APP_BASE_URL.endswith("/webapp"):
-    WEB_APP_BASE_URL = WEB_APP_BASE_URL[: -len("/webapp")]
+from config import ADMIN_ID
 
 router = Router()
 
@@ -64,36 +59,20 @@ async def cmd_offer_prediction(message: types.Message):
         await message.answer("Только администратор чата или глобальный админ может использовать эту команду.")
         return
 
-    if not WEB_APP_BASE_URL:
-        await message.answer("WEB_APP_URL не настроен.")
+    me = await message.bot.get_me()
+    if not me.username:
+        await message.answer("У бота не настроен username, deep-link недоступен. Откройте бота через поиск Telegram и нажмите Start.")
         return
 
-    webapp_url = f"{WEB_APP_BASE_URL}/webapp"
-
+    url = f"https://t.me/{me.username}?start=offer"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🎁 Открыть предсказание",
-            web_app=WebAppInfo(url=webapp_url)
-        )]
+        [InlineKeyboardButton(text="Открыть бота", url=url)]
     ])
 
-    try:
-        await message.answer(
-            "Кому нужен прогноз — нажмите кнопку ниже. Веб‑приложение откроется прямо в Telegram.",
-            reply_markup=keyboard
-        )
-    except TelegramBadRequest as e:
-        if "BUTTON_TYPE_INVALID" not in str(e):
-            raise
-
-        fallback = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Открыть по ссылке", url=webapp_url)]
-        ])
-
-        await message.answer(
-            "Telegram не принял WebApp‑кнопку в этом чате. Откройте по ссылке:",
-            reply_markup=fallback
-        )
+    await message.answer(
+        "Кому нужен прогноз — нажмите кнопку ниже. В личке бот сам либо попросит заполнить анкету, либо пришлёт предсказание.",
+        reply_markup=keyboard
+    )
 
 @router.message(Command("add_predictions"))
 async def cmd_add_predictions(message: types.Message):

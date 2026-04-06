@@ -4,13 +4,39 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.future import select
 from core.database import async_session, User, Chat, UserChat
-from config import WEB_APP_URL
+from core.calculator import calculate_all
+from config import WEB_APP_URL, DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, ADMIN_ID
+import httpx
+from datetime import datetime
 
 router = Router()
 
 WEB_APP_BASE_URL = (WEB_APP_URL or "").rstrip("/")
 if WEB_APP_BASE_URL.endswith("/webapp"):
     WEB_APP_BASE_URL = WEB_APP_BASE_URL[: -len("/webapp")]
+
+async def _generate_prediction_text(birth_date):
+    data = calculate_all(birth_date)
+
+    with open("prompts/prediction.txt", "r", encoding="utf-8") as f:
+        prompt_template = f.read()
+
+    prompt = prompt_template.format(data=str(data))
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            f"{DEEPSEEK_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}"},
+            json={
+                "model": "deepseek-chat",
+                "messages": [
+                    {"role": "system", "content": "Ты — сосед-путешественник. Используй данные для ироничного совета на путь. Без магии."},
+                    {"role": "user", "content": prompt}
+                ]
+            }
+        )
+
+    return response.json()["choices"][0]["message"]["content"]
 
 @router.message(CommandStart())
 async def cmd_start(message: types.Message):
@@ -28,34 +54,78 @@ async def cmd_start(message: types.Message):
             )
             session.add(user)
             await session.commit()
+        else:
+            changed = False
+            if user.first_name != message.from_user.first_name:
+                user.first_name = message.from_user.first_name
+                changed = True
+            if user.username != message.from_user.username:
+                user.username = message.from_user.username
+                changed = True
+            if changed:
+                await session.commit()
 
-    if message.chat.type in ["group", "supergroup"]:
-        await message.answer(
-            "Я работаю с предсказаниями через личные сообщения. Открой меня в личке и нажми /start. "
-            "Для работы в группе админ может настроить таймзону командой /timezone."
-        )
+        if message.chat.type in ["group", "supergroup"]:
+            me = await message.bot.get_me()
+            keyboard = None
+            if me.username:
+                url = f"https://t.me/{me.username}?start=offer"
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="Открыть бота", url=url)]
+                ])
+
+            await message.answer(
+                "Открой меня в личке, чтобы получить предсказание. В группе админ может настроить таймзону командой /timezone.",
+                reply_markup=keyboard
+            )
+            return
+
+        if message.chat.type != "private" and message.chat.type is not None:
+            await message.answer("Открой меня в личке и нажми /start.")
+            return
+
+        has_profile = bool(user.birth_date) and bool(user.gender)
+        if not has_profile:
+            if not WEB_APP_BASE_URL:
+                await message.answer("WEB_APP_URL не настроен.")
+                return
+
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text="📝 Заполнить анкету",
+                    web_app=WebAppInfo(url=f"{WEB_APP_BASE_URL}/webapp?user_id={message.from_user.id}")
+                )]
+            ])
+
+            await message.answer(
+                f"Привет, {message.from_user.first_name}! Чтобы я дал персональное предсказание, заполни анкету:",
+                reply_markup=keyboard
+            )
+            return
+
+        if (user.predictions_count or 0) <= 0:
+            await message.answer("У тебя закончились предсказания.")
+            return
+
+        prediction_text = await _generate_prediction_text(user.birth_date)
+        user.predictions_count = max((user.predictions_count or 0) - 1, 0)
+        await session.commit()
+
+    await message.answer(prediction_text)
+
+@router.message(F.text)
+async def private_lockdown(message: types.Message):
+    if message.chat.type != "private":
         return
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🎁 Получить предсказание",
-            web_app=WebAppInfo(url=f"{WEB_APP_BASE_URL}/webapp?user_id={message.from_user.id}")
-        )]
-    ])
+    if message.from_user.id == ADMIN_ID:
+        return
 
-    try:
-        await message.answer(
-            f"Привет, {message.from_user.first_name}! Я твой дружелюбный сосед-путешественник.\n\n"
-            "Заполни анкету в моем приложении, чтобы я мог рассчитать твою матрицу судьбы и "
-            "сделать для тебя особенное предсказание!",
-            reply_markup=keyboard
-        )
-    except TelegramBadRequest as e:
-        if "BUTTON_TYPE_INVALID" not in str(e):
-            raise
-        await message.answer(
-            "Открой меня в личке и нажми /start, чтобы получить предсказание."
-        )
+    text = message.text or ""
+    if text.startswith("/start"):
+        return
+
+    return
 
 @router.my_chat_member(F.new_chat_member.status == "member")
 async def bot_added_to_group(event: types.ChatMemberUpdated):
