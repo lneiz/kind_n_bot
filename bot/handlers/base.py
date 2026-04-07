@@ -38,12 +38,12 @@ async def _generate_prediction_text(birth_date):
 
     return response.json()["choices"][0]["message"]["content"]
 
-@router.message(CommandStart())
 def _not_ready_text(user: User) -> str:
-    if user.gender == 2:
+    if getattr(user, "gender", None) == 2:
         return "Подруга, ты пока не готова к предсказанию. Я сообщу, когда придет время"
     return "Друг, ты пока не готов к предсказанию. Я сообщу, когда придет время"
 
+@router.message(CommandStart())
 async def cmd_start(message: types.Message):
     """Handle /start command."""
     start_payload = None
