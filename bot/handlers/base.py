@@ -128,11 +128,8 @@ async def cmd_start(message: types.Message):
 
     await message.answer(prediction_text)
 
-@router.message(F.text)
+@router.message(F.chat.type == "private", F.text)
 async def private_lockdown(message: types.Message):
-    if message.chat.type != "private":
-        return
-
     if message.from_user.id == ADMIN_ID:
         return
 
