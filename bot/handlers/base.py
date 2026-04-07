@@ -15,13 +15,21 @@ WEB_APP_BASE_URL = (WEB_APP_URL or "").rstrip("/")
 if WEB_APP_BASE_URL.endswith("/webapp"):
     WEB_APP_BASE_URL = WEB_APP_BASE_URL[: -len("/webapp")]
 
-async def _generate_prediction_text(birth_date):
+def _gender_label(gender) -> str:
+    if gender == 1:
+        return "мужской"
+    if gender == 2:
+        return "женский"
+    return "не указан"
+
+async def _generate_prediction_text(birth_date, gender):
     data = calculate_all(birth_date)
 
     with open("prompts/prediction.txt", "r", encoding="utf-8") as f:
         prompt_template = f.read()
 
     prompt = prompt_template.format(data=str(data))
+    prompt = f"{prompt}\n\nПол пользователя: {_gender_label(gender)}"
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
@@ -122,7 +130,7 @@ async def cmd_start(message: types.Message):
             await message.answer(_not_ready_text(user))
             return
 
-        prediction_text = await _generate_prediction_text(user.birth_date)
+        prediction_text = await _generate_prediction_text(user.birth_date, user.gender)
         user.predictions_count = max((user.predictions_count or 0) - 1, 0)
         await session.commit()
 

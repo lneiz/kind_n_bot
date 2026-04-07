@@ -101,8 +101,15 @@ async def generate_prediction(
         with open("prompts/prediction.txt", "r", encoding="utf-8") as f:
             prompt_template = f.read()
 
-        prompt = prompt_template.format(data=str(data))
+        gender_label = "не указан"
+        if user.gender == 1:
+            gender_label = "мужской"
+        elif user.gender == 2:
+            gender_label = "женский"
 
+        prompt = prompt_template.format(data=str(data))
+        prompt = f"{prompt}\n\nПол пользователя: {gender_label}"
+        
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{DEEPSEEK_BASE_URL}/chat/completions",

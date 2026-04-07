@@ -31,6 +31,13 @@ async def get_birthday_users(session, chat_id, local_today):
 
     return birthday_rows
 
+def _gender_label(gender) -> str:
+    if gender == 1:
+        return "мужской"
+    if gender == 2:
+        return "женский"
+    return "не указан"
+
 async def generate_birthday_greeting(user, bot_name):
     """Generate a birthday greeting using DeepSeek."""
     data = calculate_all(user.birth_date)
@@ -39,6 +46,7 @@ async def generate_birthday_greeting(user, bot_name):
         prompt_template = f.read()
         
     prompt = prompt_template.format(name=user.first_name, data=str(data))
+    prompt = f"{prompt}\n\nПол: {_gender_label(user.gender)}"
     
     async with httpx.AsyncClient() as client:
         try:
