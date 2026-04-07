@@ -128,13 +128,9 @@ async def cmd_start(message: types.Message):
 
     await message.answer(prediction_text)
 
-@router.message(F.chat.type == "private", F.text)
+@router.message(F.chat.type == "private", F.text.regexp(r"^(?!/).+"))
 async def private_lockdown(message: types.Message):
     if message.from_user.id == ADMIN_ID:
-        return
-
-    text = message.text or ""
-    if text.startswith("/start"):
         return
 
     return

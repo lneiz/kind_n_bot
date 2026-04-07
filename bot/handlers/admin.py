@@ -45,9 +45,11 @@ async def cmd_start_prediction_wave(message: types.Message):
             await session.execute(update_stmt)
             await session.commit()
 
-    await message.answer(
-        f"Волна предсказаний запущена! Все {len(user_ids)} участников получили по одному предсказанию 🏕"
-    )
+    for user_id in (user_ids or []):
+        try:
+            await message.bot.send_message(user_id, "Количество доступных предсказаний: 1")
+        except Exception:
+            pass
 
 @router.message(Command("offer_prediction"))
 @router.message(F.text.startswith("/offer_prediction"))
@@ -119,7 +121,10 @@ async def cmd_add_predictions(message: types.Message):
         user.predictions_count = (user.predictions_count or 0) + count
         await session.commit()
 
-    await message.answer(f"@{username}: +{count} (теперь {user.predictions_count}).")
+    try:
+        await message.bot.send_message(user.user_id, f"Количество доступных предсказаний: {user.predictions_count}")
+    except Exception:
+        pass
 
 @router.message(Command("add_predictions_all"))
 async def cmd_add_predictions_all(message: types.Message):
