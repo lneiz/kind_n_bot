@@ -36,6 +36,7 @@ class UserChat(Base):
     
     user_id = Column(BigInteger, ForeignKey('users.user_id'), primary_key=True)
     chat_id = Column(BigInteger, ForeignKey('chats.chat_id'), primary_key=True)
+    last_birthday_greeted_year = Column(Integer, nullable=True)
 
 class FavoritePrediction(Base):
     __tablename__ = 'favorite_predictions'

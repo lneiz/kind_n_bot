@@ -13,22 +13,23 @@ from aiogram import Bot
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def get_birthday_users(session, chat_id):
-    """Find users in a specific chat who have a birthday today."""
-    today = date.today()
-    
-    # Query users in this chat who have a birthday today (month and day match)
+async def get_birthday_users(session, chat_id, local_today):
+    """Find users in a specific chat who have a birthday on local_today."""
     stmt = (
-        select(User)
-        .join(UserChat)
+        select(User, UserChat)
+        .join(UserChat, UserChat.user_id == User.user_id)
         .where(UserChat.chat_id == chat_id)
         .where(User.birth_date != None)
     )
     result = await session.execute(stmt)
-    users = result.scalars().all()
-    
-    birthday_users = [u for u in users if u.birth_date.month == today.month and u.birth_date.day == today.day]
-    return birthday_users
+    rows = result.all()
+
+    birthday_rows = []
+    for user, assoc in rows:
+        if user.birth_date.month == local_today.month and user.birth_date.day == local_today.day:
+            birthday_rows.append((user, assoc))
+
+    return birthday_rows
 
 async def generate_birthday_greeting(user, bot_name):
     """Generate a birthday greeting using DeepSeek."""
@@ -77,22 +78,28 @@ async def run_scheduler():
                     tz = pytz.timezone(chat.timezone or 'UTC')
                     local_time = now_utc.astimezone(tz)
                     
-                    # Check if it's 09:00 local time
-                    if local_time.hour == 9 and local_time.minute == 0:
+                    # Trigger once within 09:00–09:59 local time
+                    if local_time.hour == 9:
                         logger.info(f"Processing chat {chat.chat_id} (timezone {chat.timezone})")
                         
-                        birthday_users = await get_birthday_users(session, chat.chat_id)
-                        
-                        for user in birthday_users:
+                        local_today = local_time.date()
+                        birthday_rows = await get_birthday_users(session, chat.chat_id, local_today)
+
+                        local_year = local_today.year
+                        for user, assoc in birthday_rows:
+                            if assoc.last_birthday_greeted_year == local_year:
+                                continue
+
                             greeting = await generate_birthday_greeting(user, "Сосед-путешественник")
-                            
-                            # Mention the user
+
                             mention = f"[{user.first_name}](tg://user?id={user.user_id})"
                             message_text = f"🏕 {greeting}\n\nПоздравляем нашего попутчика {mention}! 🎒👟"
-                            
+
                             await bot.send_message(chat.chat_id, message_text, parse_mode="Markdown")
-                            
-                            # Wait a bit between users as per TZ
+
+                            assoc.last_birthday_greeted_year = local_year
+                            await session.commit()
+
                             await asyncio.sleep(2)
                             
                 except Exception as e:
