@@ -50,6 +50,7 @@ async def cmd_start_prediction_wave(message: types.Message):
     )
 
 @router.message(Command("offer_prediction"))
+@router.message(F.text.startswith("/offer_prediction"))
 async def cmd_offer_prediction(message: types.Message):
     if message.chat.type not in ["group", "supergroup"]:
         await message.answer("Эта команда работает только в группах.")

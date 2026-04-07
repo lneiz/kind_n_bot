@@ -39,8 +39,19 @@ async def _generate_prediction_text(birth_date):
     return response.json()["choices"][0]["message"]["content"]
 
 @router.message(CommandStart())
+def _not_ready_text(user: User) -> str:
+    if user.gender == 2:
+        return "Подруга, ты пока не готова к предсказанию. Я сообщу, когда придет время"
+    return "Друг, ты пока не готов к предсказанию. Я сообщу, когда придет время"
+
 async def cmd_start(message: types.Message):
     """Handle /start command."""
+    start_payload = None
+    if message.text:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) == 2:
+            start_payload = parts[1].strip()
+
     async with async_session() as session:
         stmt = select(User).where(User.user_id == message.from_user.id)
         result = await session.execute(stmt)
@@ -97,14 +108,18 @@ async def cmd_start(message: types.Message):
                 )]
             ])
 
+            text = "Чтобы я дал персональное предсказание, заполни анкету:"
+            if start_payload == "offer":
+                text = "Чтобы я дал персональное предсказание, сначала заполни анкету:"
+
             await message.answer(
-                f"Привет, {message.from_user.first_name}! Чтобы я дал персональное предсказание, заполни анкету:",
+                text,
                 reply_markup=keyboard
             )
             return
 
         if (user.predictions_count or 0) <= 0:
-            await message.answer("У тебя закончились предсказания.")
+            await message.answer(_not_ready_text(user))
             return
 
         prediction_text = await _generate_prediction_text(user.birth_date)
