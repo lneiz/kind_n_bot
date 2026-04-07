@@ -165,10 +165,17 @@ async def cmd_add_predictions_all(message: types.Message):
 
     await message.answer(f"Всем участникам чата добавлено +{count} к predictions_count (участников: {len(user_ids)}).")
 
-@router.message(F.text.regexp(r"^(?!/).+"))
+@router.message(F.text)
 async def track_user_in_chat(message: types.Message):
     """Track user-chat association on any message."""
+    if message.text and message.text.startswith("/offer_prediction"):
+        await cmd_offer_prediction(message)
+        return
+
     if message.chat.type in ["group", "supergroup"]:
+        if message.text and message.text.startswith("/"):
+            return
+
         user_id = message.from_user.id
         chat_id = message.chat.id
 
